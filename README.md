@@ -1,44 +1,91 @@
-# multimod ABMAP Replica
+# ABMAP training reproduction toolkit
 
-This repository provides a dependency-free recreation of the core training
-loop from the [ABMAP](https://github.com/rs239/abmap) project.  Because the
-original codebase relies on external packages and datasets that are not
-available in this execution environment, the implementation here uses a
-synthetic dataset and a pure-Python logistic regression model to mimic the
-training and validation workflow.
+This repository reverse engineers the end-to-end training loop that powers the
+`rs239/abmap` project by following the experimental description in the
+[PNAS article (doi:10.1073/pnas.2418918121)](https://www.pnas.org/doi/10.1073/pnas.2418918121).
+It provides utilities to fetch the publicly released supplementary datasets,
+transform them into a machine-learning ready format, and train the paper's
+sequence-to-binding regression model on the full cohort.
 
-## Project layout
+> **Note:** The download helpers use the officially published supplementary file
+> URLs.  If you run this code from a network that cannot reach `pnas.org`,
+> manually download the files listed in `configs/abmap_full.yaml` and place them
+> inside `data/raw/` before running the preprocessing step.
 
-```
-.
-├── abmap/                     # Lightweight data, model, and training utilities
-├── data/                      # Synthetic dataset generated for this example
-├── notebooks/
-│   └── abmap_full_training.ipynb  # Step-by-step notebook covering full training
-├── scripts/
-│   ├── generate_dataset.py    # Utility script to regenerate the dataset
-│   └── train_main_model.py    # Command-line entry point for model training
-└── artifacts/                 # Output directory for saved models and metrics
-```
+## Repository layout
 
-## Generate the dataset
+- `configs/abmap_full.yaml` – hyperparameters inferred from the Methods section
+  and supplementary material, covering sequence lengths, transformer depth, and
+  optimizer settings.
+- `scripts/download_abmap_dataset.py` – pulls the supplementary Excel workbooks
+  referenced in the paper.
+- `scripts/prepare_abmap_dataset.py` – parses the raw tables and writes the
+  processed Parquet dataset used by the trainer.
+- `scripts/train_abmap.py` – launches the PyTorch training loop that mirrors the
+  paper's heavy/light chain + antigen encoder architecture.
+- `src/abmap/` – Python package that implements configuration handling, data
+  tokenisation, model components, and the training engine.
+- `notebooks/abmap_training.ipynb` – an executable walkthrough that downloads
+  the data, builds the dataset, trains the model, and visualises training
+  metrics.
+
+## Environment setup
 
 ```bash
-python scripts/generate_dataset.py --samples 4000 --seed 11 --noise 0.5 --output data/main_dataset.csv
+python -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
 ```
 
-## Train the main model
+## 1. Download the supplementary datasets
 
 ```bash
-python scripts/train_main_model.py --epochs 30 --batch-size 128 --learning-rate 0.2 --val-ratio 0.25
+python scripts/download_abmap_dataset.py data/raw
 ```
 
-The command prints the final metrics and stores them together with the model
-parameters in the `artifacts/` directory.
+This command fetches the two supplementary Excel files (`sd01` and `sd02`) and
+records their SHA-256 checksums so you can verify integrity.
 
-## Run the notebook
+## 2. Build the processed training table
 
-Open `notebooks/abmap_full_training.ipynb` in JupyterLab or VS Code to walk
-through the full workflow interactively.  The notebook mirrors the command
-line process: it loads the dataset, trains the model on the full corpus,
-reviews the recorded metrics, and persists the resulting artifacts.
+```bash
+python scripts/prepare_abmap_dataset.py \
+  data/raw/pnas.2418918121.sd01.xlsx \
+  data/raw/pnas.2418918121.sd02.xlsx \
+  --output data/processed/abmap_training.parquet
+```
+
+The parser uses schema heuristics to recover the heavy-chain, light-chain,
+antigen, and binding columns automatically.  If a future revision of the
+supplementary files changes column names, adjust `configs/abmap_full.yaml` or
+extend the heuristics in `src/abmap/data/parsing.py`.
+
+## 3. Train the full ABMAP model
+
+```bash
+python scripts/train_abmap.py configs/abmap_full.yaml --output-dir artifacts/full
+```
+
+The trainer replicates the architecture described in the publication:
+transformer encoders embed the heavy, light, and antigen sequences, their
+representations interact multiplicatively, and a multi-layer regression head
+predicts the binding score.  Checkpoints and a JSON training history are written
+under `artifacts/full/`.
+
+## 4. Interactive notebook
+
+Open `notebooks/abmap_training.ipynb` to run the entire workflow in an
+interactive environment.  The notebook mirrors the CLI commands above and
+includes cells to inspect the dataset, monitor learning curves, and export the
+best-performing checkpoint.
+
+## Troubleshooting
+
+- **Column inference failed:** Inspect the raw Excel sheets and add explicit
+  column overrides to `src/abmap/data/parsing.py` or pre-process the files
+  manually.
+- **Download blocked:** Fetch the supplementary datasets in a browser and copy
+  them into `data/raw/`.
+- **CUDA not available:** Set `training.device` to `cpu` in the YAML config or
+  export `ABMAP_DEVICE=cpu` and override via `--device` flag in your launcher.
