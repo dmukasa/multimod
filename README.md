@@ -1,0 +1,3 @@
+# multimod
+
+Project scaffold.
