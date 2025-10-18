@@ -1,44 +1,38 @@
-# multimod ABMAP Replica
+# ABMAP upstream replication status
 
-This repository provides a dependency-free recreation of the core training
-loop from the [ABMAP](https://github.com/rs239/abmap) project.  Because the
-original codebase relies on external packages and datasets that are not
-available in this execution environment, the implementation here uses a
-synthetic dataset and a pure-Python logistic regression model to mimic the
-training and validation workflow.
+This repository documents the current state of trying to reproduce the
+[rs239/abmap](https://github.com/rs239/abmap) project inside this offline
+execution environment.  The original codebase depends on assets that are not
+publicly mirrored here, so this project no longer ships a stand-in training
+loop with synthetic data.  Instead, it records what is actually available from
+upstream (based on the public repository contents and documentation) and how to
+integrate it once you have access to the official resources.
 
-## Project layout
+## What is available upstream?
 
-```
-.
-├── abmap/                     # Lightweight data, model, and training utilities
-├── data/                      # Synthetic dataset generated for this example
-├── notebooks/
-│   └── abmap_full_training.ipynb  # Step-by-step notebook covering full training
-├── scripts/
-│   ├── generate_dataset.py    # Utility script to regenerate the dataset
-│   └── train_main_model.py    # Command-line entry point for model training
-└── artifacts/                 # Output directory for saved models and metrics
-```
+The public `rs239/abmap` repository publishes trained checkpoints and inference
+utilities, but it does **not** contain the end-to-end training script or the raw
+training dataset used in the paper.  The maintainers note that those materials
+are available only upon request.  Without them, a faithful reproduction of the
+published training run cannot be provided or executed in this environment.
 
-## Generate the dataset
+## How to proceed when you obtain the official assets
 
-```bash
-python scripts/generate_dataset.py --samples 4000 --seed 11 --noise 0.5 --output data/main_dataset.csv
-```
+1. Clone the upstream repository next to this project:
+   ```bash
+   git clone https://github.com/rs239/abmap.git upstream-abmap
+   ```
+2. Contact the authors to obtain the training dataset and the private training
+   scripts.  Place them inside `upstream-abmap/` following the directory layout
+   they provide.
+3. Run the orchestration utility that comes with those private assets (for
+   example, a `train.py` entry point) directly from within the upstream
+   repository.  Until the files are supplied, any attempt to launch a training
+   session will result in a missing-file error.
 
-## Train the main model
+## Repository contents
 
-```bash
-python scripts/train_main_model.py --epochs 30 --batch-size 128 --learning-rate 0.2 --val-ratio 0.25
-```
-
-The command prints the final metrics and stores them together with the model
-parameters in the `artifacts/` directory.
-
-## Run the notebook
-
-Open `notebooks/abmap_full_training.ipynb` in JupyterLab or VS Code to walk
-through the full workflow interactively.  The notebook mirrors the command
-line process: it loads the dataset, trains the model on the full corpus,
-reviews the recorded metrics, and persists the resulting artifacts.
+At this point the repository only tracks this README so that downstream users
+are not misled into thinking that a working replica—including the actual
+training data—exists here.  Once the official training code and dataset become
+public, they can be added as a submodule or vendored in a follow-up change.
