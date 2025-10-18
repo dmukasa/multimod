@@ -1,0 +1,37 @@
+# Configuration derived from the training protocol described in the ABMAP publication.
+dataset:
+  raw_directory: data/raw
+  supplementary_files:
+    - pnas.2418918121.sd01.xlsx
+    - pnas.2418918121.sd02.xlsx
+  processed_dataset: data/processed/abmap_training.parquet
+  validation_fraction: 0.1
+  random_seed: 17
+  max_sequence_lengths:
+    heavy: 256
+    light: 256
+    antigen: 128
+model:
+  embedding_dim: 320
+  transformer_layers: 6
+  transformer_heads: 8
+  transformer_ff_dim: 1280
+  dropout: 0.15
+  interaction_hidden_dim: 768
+  use_light_chain: true
+training:
+  batch_size: 64
+  num_workers: 4
+  pin_memory: true
+  learning_rate: 0.0005
+  weight_decay: 0.01
+  gradient_clip_val: 1.0
+  max_epochs: 60
+  device: auto
+  scheduler:
+    type: cosine
+    min_lr: 5.0e-6
+    t_max: 60
+  early_stopping:
+    patience: 8
+    min_delta: 0.001
